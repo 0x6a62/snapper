@@ -1,0 +1,23 @@
+snapshot: ./snapshots/root_zig_root_test_compare_-_struct_-_success.snap
+{
+  foo: 100 <comptime_int>
+  bar: 200.3 <comptime_float>
+  baz: false <bool>
+  qua:
+    [
+      11 <u16>
+      22 <u16>
+      33 <u16>
+    ]
+  quux:
+    {
+      abc:
+        this <[]u8>
+      def:
+        is <[]u8>
+      ghi:
+        a <[]u8>
+      jkl:
+        test <[]u8>
+    }
+}
