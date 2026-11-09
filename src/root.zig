@@ -5,6 +5,8 @@ const ArrayList = std.ArrayList;
 const Io = std.Io;
 const print = std.debug.print;
 
+const SNAPSHOT_ROOT = "./.snapshots";
+
 /// Stringify value by appending its stringified value(s) to the results array
 fn stringify_inner(
     aa: Allocator,
@@ -302,18 +304,17 @@ pub fn compare(
     defer arena.deinit();
     const aa = arena.allocator();
 
-    const buffer_size = 10;
+    const buffer_size = 4096; // should be able to hold a full snaphot line
     const actual_s = try stringify(aa, actual);
 
     // TODO: find project root and/or allow customization of snapshots path
-    const snapshot_root = "./snapshots";
-    std.Io.Dir.createDir(std.Io.Dir.cwd(), io, snapshot_root, .default_dir) catch |e| {
+    std.Io.Dir.createDir(std.Io.Dir.cwd(), io, SNAPSHOT_ROOT, .default_dir) catch |e| {
         if (e == Io.Dir.CreateDirError.PathAlreadyExists) {} else {
             return e;
         }
     };
 
-    const snapshot_name = try build_snapshot_name(aa, src, snapshot_root);
+    const snapshot_name = try build_snapshot_name(aa, src, SNAPSHOT_ROOT);
 
     // std.log.scoped(.compare).info("{s} exists: {any}", .{
     //     snapshot_name,
@@ -346,48 +347,48 @@ pub fn compare(
         };
 
         // Read through file buffer at a time, doing comparison against actual
-        var data: [buffer_size]u8 = undefined;
         var actual_index: usize = 0;
-        while (true) {
-            const x = try ri.readSliceShort(&data);
 
+        // Line by line comparison of file version actual
+        while (try ri.takeDelimiter('\n')) |d| {
+            const x = d.len;
             if (actual_index > actual_s.len) {
-                // NOTE: Don't return early, I want to show the difference
-                // std.log.scoped(.compare).warn(
-                //     "Size mismatch {d} {d} (start)\n",
-                //     .{
-                //         actual_index,
-                //         actual_s.len,
-                //     },
-                // );
-                // return error.TestExpectedEqual;
+                std.log.scoped(.compare).err(
+                    "Size mismatch {d} {d} (end)\n",
+                    .{
+                        actual_index,
+                        actual_s.len,
+                    },
+                );
+                return error.TestExpectedEqual;
             }
             if (actual_index + x > actual_s.len) {
-                // NOTE: Don't return early, I want to show the difference
-                // std.log.scoped(.compare).warn(
-                //     "Size mismatch {d} {d} (end)\n",
-                //     .{
-                //         actual_index + 1,
-                //         actual_s.len,
-                //     },
-                // );
-                // return error.TestExpectedEqual;
+                std.log.scoped(.compare).err(
+                    "Size mismatch {d} {d} (end)\n",
+                    .{
+                        actual_index + x,
+                        actual_s.len,
+                    },
+                );
+                return error.TestExpectedEqual;
             }
 
-            if (!std.mem.eql(u8, data[0..x], actual_s[actual_index .. actual_index + x])) {
+            // print("e:{s}\n", .{d[0..x]});
+            // print("a:{s}\n", .{actual_s[actual_index .. actual_index + x]});
+
+            if (!std.mem.eql(u8, d[0..x], actual_s[actual_index .. actual_index + x])) {
                 // failed match
                 std.log.scoped(.compare).err(
                     "\nexpected: '{s}'\nactual  : '{s}'",
                     .{
-                        data[0..x],
+                        d[0..x],
                         actual_s[actual_index .. actual_index + x],
                     },
                 );
                 return error.TestExpectedEqual;
             }
-            actual_index += x;
-
-            if (x < buffer.len) break;
+            // Advance data block + delimiter
+            actual_index += x + 1;
         }
     } else {
         // Snapshot doesn't exist, create
@@ -598,7 +599,7 @@ test "compare - i32 - success" {
 
 test "compare - i32 - failure" {
     // NOTE: This failure test only works if the snapshot has different value
-    const data: i32 = 11223344;
+    const data: i32 = 22334455;
     const result = compare(std.testing.io, std.testing.allocator, @src(), data);
     try std.testing.expectError(error.TestExpectedEqual, result);
 }
@@ -611,7 +612,7 @@ test "compare - array - success" {
 test "compare - struct - success" {
     const data = .{
         .foo = 100,
-        .bar = 200.300,
+        .bar = 200.345,
         .baz = false,
         .qua = [3]u16{ 11, 22, 33 },
         .quux = .{

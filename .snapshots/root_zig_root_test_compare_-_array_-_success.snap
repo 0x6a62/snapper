@@ -1,0 +1,8 @@
+snapshot: ./.snapshots/root_zig_root_test_compare_-_array_-_success.snap
+[
+  1.23 <f32>
+  2.34 <f32>
+  3.45 <f32>
+  4.56 <f32>
+  5.67 <f32>
+]

@@ -1,7 +1,7 @@
-snapshot: ./snapshots/root_zig_root_test_compare_-_struct_-_success.snap
+snapshot: ./.snapshots/root_zig_root_test_compare_-_struct_-_success.snap
 {
   foo: 100 <comptime_int>
-  bar: 200.3 <comptime_float>
+  bar: 200.345 <comptime_float>
   baz: false <bool>
   qua:
     [
