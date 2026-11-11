@@ -1,27 +1,27 @@
 snapshot: ./.snapshots/root_zig_root_test_compare_-_struct_-_success.snap
 {
-  foo: 100 <comptime_int>
-  bar: 200.345 <comptime_float>
-  baz: false <bool>
+  foo: comptime_int = 100
+  bar: comptime_float = 200.345
+  baz: bool = false
   qua:
     [
-      11 <u16>
-      22 <u16>
-      33 <u16>
+      : u16 = 11
+      : u16 = 22
+      : u16 = 33
     ]
   quux:
     {
       abc:
-        this <[]u8>
+        : []u8 = this
       def:
-        is <[]u8>
+        : []u8 = is
       ghi:
-        a <[]u8>
+        : []u8 = a
       jkl:
-        test <[]u8>
+        : []u8 = test
     }
   prop1:
-    .Bar <@EnumLiteral()>
+    : @EnumLiteral() = .Bar
   prop2:
-    Bar <root.Foo>
+    : root.Foo = Bar
 }

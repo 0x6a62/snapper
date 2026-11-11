@@ -48,10 +48,10 @@ fn stringify_inner(
         .bool => {
             try results.append(
                 aa,
-                try std.fmt.allocPrint(aa, "{s}{any} <{any}>", .{
+                try std.fmt.allocPrint(aa, "{s}: {any} = {any}", .{
                     indent_s,
-                    value,
                     @TypeOf(value),
+                    value,
                 }),
             );
         },
@@ -62,10 +62,10 @@ fn stringify_inner(
         => {
             try results.append(
                 aa,
-                try std.fmt.allocPrint(aa, "{s}{d} <{any}>", .{
+                try std.fmt.allocPrint(aa, "{s}: {any} = {d}", .{
                     indent_s,
-                    value,
                     @TypeOf(value),
+                    value,
                 }),
             );
         },
@@ -91,7 +91,7 @@ fn stringify_inner(
                         // treat as string
                         try results.append(
                             aa,
-                            try std.fmt.allocPrint(aa, "{s}{s} <[]u8>", .{
+                            try std.fmt.allocPrint(aa, "{s}: []u8 = {s}", .{
                                 indent_s,
                                 value,
                             }),
@@ -100,7 +100,7 @@ fn stringify_inner(
                         // treat as not string
                         try results.append(
                             aa,
-                            try std.fmt.allocPrint(aa, "{s}{any} <[]u8>", .{
+                            try std.fmt.allocPrint(aa, "{s}: <[]u8> = {any}", .{
                                 indent_s,
                                 value,
                             }),
@@ -114,8 +114,8 @@ fn stringify_inner(
                         aa,
                         try std.fmt.allocPrint(
                             aa,
-                            "TODO: {any} <{any} {any}>",
-                            .{ value, @TypeOf(value), p.size },
+                            "TODO: : {any} ({any}) = {any}",
+                            .{ @TypeOf(value), p.size, value },
                         ),
                     );
                 },
@@ -129,11 +129,11 @@ fn stringify_inner(
                     .bool => {
                         try results.append(
                             aa,
-                            try std.fmt.allocPrint(aa, "{s}{s}: {any} <{any}>", .{
+                            try std.fmt.allocPrint(aa, "{s}{s}: {any} = {any}", .{
                                 indent2_s,
                                 x.field_names[i],
-                                sub_value,
                                 @TypeOf(@field(value, x.field_names[i])),
+                                sub_value,
                             }),
                         );
                     },
@@ -145,11 +145,11 @@ fn stringify_inner(
                         // simple value, show name and value on same line
                         try results.append(
                             aa,
-                            try std.fmt.allocPrint(aa, "{s}{s}: {d} <{any}>", .{
+                            try std.fmt.allocPrint(aa, "{s}{s}: {any} = {d}", .{
                                 indent2_s,
                                 x.field_names[i],
-                                sub_value,
                                 @TypeOf(@field(value, x.field_names[i])),
+                                sub_value,
                             }),
                         );
                     },
@@ -171,20 +171,20 @@ fn stringify_inner(
         .@"enum" => {
             try results.append(
                 aa,
-                try std.fmt.allocPrint(aa, "{s}{s} <{any}>", .{
+                try std.fmt.allocPrint(aa, "{s}: {any} = {s}", .{
                     indent_s,
-                    @tagName(value),
                     @TypeOf(value),
+                    @tagName(value),
                 }),
             );
         },
         .enum_literal => {
             try results.append(
                 aa,
-                try std.fmt.allocPrint(aa, "{s}{any} <{any}>", .{
+                try std.fmt.allocPrint(aa, "{s}: {any} = {any}", .{
                     indent_s,
-                    value,
                     (@TypeOf(value)),
+                    value,
                 }),
             );
         },
@@ -192,11 +192,11 @@ fn stringify_inner(
             _ = u;
             try results.append(
                 aa,
-                try std.fmt.allocPrint(aa, "{s}{s}{any} <{any}>", .{
+                try std.fmt.allocPrint(aa, "{s}: {any} = {s}{any}", .{
                     indent_s,
+                    @TypeOf(value),
                     @tagName(value),
                     value,
-                    @TypeOf(value),
                 }),
             );
             // print(">{any}\n", .{u.tag_type});
@@ -206,30 +206,30 @@ fn stringify_inner(
         .error_set => {
             try results.append(
                 aa,
-                try std.fmt.allocPrint(aa, "{s}{any} <{any}>", .{
+                try std.fmt.allocPrint(aa, "{s}: {any} = {any}", .{
                     indent_s,
-                    value,
                     @TypeOf(value),
+                    value,
                 }),
             );
         },
         .error_union => |eu| {
             try results.append(
                 aa,
-                try std.fmt.allocPrint(aa, "{s}{any} <!{any}>", .{
+                try std.fmt.allocPrint(aa, "{s}: !{any} = {any}", .{
                     indent_s,
-                    value,
                     eu.payload,
+                    value,
                 }),
             );
         },
         .optional => {
             try results.append(
                 aa,
-                try std.fmt.allocPrint(aa, "{s}{any} <{any}>", .{
+                try std.fmt.allocPrint(aa, "{s}: {any} = {any}", .{
                     indent_s,
-                    value,
                     @TypeOf(value),
+                    value,
                 }),
             );
         },
@@ -240,8 +240,11 @@ fn stringify_inner(
                 aa,
                 try std.fmt.allocPrint(
                     aa,
-                    "TODO: {any} <{any}>",
-                    .{ value, @TypeOf(value) },
+                    "TODO: : {any} = {any}",
+                    .{
+                        @TypeOf(value),
+                        value,
+                    },
                 ),
             );
         },
@@ -504,7 +507,7 @@ test "stringify - bool - true" {
 
     const value = true;
     const actual = try stringify(aa, value);
-    try std.testing.expect(std.mem.eql(u8, actual, "true <bool>"));
+    try std.testing.expect(std.mem.eql(u8, actual, ": bool = true"));
 }
 
 test "stringify - bool - false" {
@@ -514,7 +517,7 @@ test "stringify - bool - false" {
 
     const value = false;
     const actual = try stringify(aa, value);
-    try std.testing.expect(std.mem.eql(u8, actual, "false <bool>"));
+    try std.testing.expect(std.mem.eql(u8, actual, ": bool = false"));
 }
 
 test "stringify - comptime_int" {
@@ -524,7 +527,7 @@ test "stringify - comptime_int" {
 
     const value = 100;
     const actual = try stringify(aa, value);
-    try std.testing.expect(std.mem.eql(u8, actual, "100 <comptime_int>"));
+    try std.testing.expect(std.mem.eql(u8, actual, ": comptime_int = 100"));
 }
 
 test "stringify - comptime_float" {
@@ -534,7 +537,7 @@ test "stringify - comptime_float" {
 
     const value = 1.234;
     const actual = try stringify(aa, value);
-    try std.testing.expect(std.mem.eql(u8, actual, "1.234 <comptime_float>"));
+    try std.testing.expect(std.mem.eql(u8, actual, ": comptime_float = 1.234"));
 }
 
 test "stringify - i32" {
@@ -544,7 +547,7 @@ test "stringify - i32" {
 
     const value: i32 = 200;
     const actual = try stringify(aa, value);
-    try std.testing.expect(std.mem.eql(u8, actual, "200 <i32>"));
+    try std.testing.expect(std.mem.eql(u8, actual, ": i32 = 200"));
 }
 
 test "stringify - f64" {
@@ -554,7 +557,7 @@ test "stringify - f64" {
 
     const value: f64 = 3.456;
     const actual = try stringify(aa, value);
-    try std.testing.expect(std.mem.eql(u8, actual, "3.456 <f64>"));
+    try std.testing.expect(std.mem.eql(u8, actual, ": f64 = 3.456"));
 }
 
 test "stringify - string" {
@@ -564,7 +567,7 @@ test "stringify - string" {
 
     const value = "foo";
     const actual = try stringify(aa, value);
-    try std.testing.expect(std.mem.eql(u8, actual, "foo <[]u8>"));
+    try std.testing.expect(std.mem.eql(u8, actual, ": []u8 = foo"));
 }
 
 test "stringify - array - bool" {
@@ -576,10 +579,10 @@ test "stringify - array - bool" {
     const actual = try stringify(aa, value);
     const expected =
         \\[
-        \\  true <bool>
-        \\  false <bool>
-        \\  true <bool>
-        \\  false <bool>
+        \\  : bool = true
+        \\  : bool = false
+        \\  : bool = true
+        \\  : bool = false
         \\]
     ;
     try std.testing.expect(std.mem.eql(u8, actual, expected));
@@ -594,9 +597,9 @@ test "stringify - array - i16" {
     const actual = try stringify(aa, value);
     const expected =
         \\[
-        \\  11 <u16>
-        \\  22 <u16>
-        \\  33 <u16>
+        \\  : u16 = 11
+        \\  : u16 = 22
+        \\  : u16 = 33
         \\]
     ;
     try std.testing.expect(std.mem.eql(u8, actual, expected));
@@ -611,8 +614,8 @@ test "stringify - array - string" {
     const actual = try stringify(aa, value);
     const expected =
         \\[
-        \\  foo <[]u8>
-        \\  bar <[]u8>
+        \\  : []u8 = foo
+        \\  : []u8 = bar
         \\]
     ;
     try std.testing.expect(std.mem.eql(u8, actual, expected));
@@ -626,7 +629,7 @@ test "stringify - enum" {
     const value: Foo = .Qua;
     const actual = try stringify(aa, value);
     const expected =
-        \\Qua <root.Foo>
+        \\: root.Foo = Qua
     ;
     try std.testing.expect(std.mem.eql(u8, actual, expected));
 }
@@ -639,7 +642,7 @@ test "stringify - enumliteral" {
     const value = .Baz;
     const actual = try stringify(aa, value);
     const expected =
-        \\.Baz <@EnumLiteral()>
+        \\: @EnumLiteral() = .Baz
     ;
     try std.testing.expect(std.mem.eql(u8, actual, expected));
 }
@@ -652,7 +655,7 @@ test "stringify - union - i32" {
     const value: Shape = Shape{ .Circle = 100 };
     const actual = try stringify(aa, value);
     const expected =
-        \\Circle.{ .Circle = 100 } <root.Shape>
+        \\: root.Shape = Circle.{ .Circle = 100 }
     ;
     try std.testing.expect(std.mem.eql(u8, actual, expected));
 }
@@ -665,7 +668,7 @@ test "stringify - union - struct" {
     const value: Shape = Shape{ .Rectangle = Rectangle{ .h = 10, .w = 20 } };
     const actual = try stringify(aa, value);
     const expected =
-        \\Rectangle.{ .Rectangle = .{ .w = 20, .h = 10 } } <root.Shape>
+        \\: root.Shape = Rectangle.{ .Rectangle = .{ .w = 20, .h = 10 } }
     ;
     try std.testing.expect(std.mem.eql(u8, actual, expected));
 }
@@ -678,7 +681,7 @@ test "stringify - error set" {
     const value = error.OutOfMemory;
     const actual = try stringify(aa, value);
     const expected =
-        \\error.OutOfMemory <error{OutOfMemory}>
+        \\: error{OutOfMemory} = error.OutOfMemory
     ;
     try std.testing.expect(std.mem.eql(u8, actual, expected));
 }
@@ -691,7 +694,7 @@ test "stringify - error union" {
     const value = make_error();
     const actual = try stringify(aa, value);
     const expected =
-        \\error.OutOfMemory <!i32>
+        \\: !i32 = error.OutOfMemory
     ;
     try std.testing.expect(std.mem.eql(u8, actual, expected));
 }
@@ -704,7 +707,7 @@ test "stringify - optional - i64" {
     const value: ?i64 = 123;
     const actual = try stringify(aa, value);
     const expected =
-        \\123 <?i64>
+        \\: ?i64 = 123
     ;
     try std.testing.expect(std.mem.eql(u8, actual, expected));
 }
@@ -717,7 +720,7 @@ test "stringify - optional - null" {
     const value: ?i64 = null;
     const actual = try stringify(aa, value);
     const expected =
-        \\null <?i64>
+        \\: ?i64 = null
     ;
     // print(">>{s}<<\n", .{actual});
     // print(">>{s}<<\n", .{expected});
@@ -790,7 +793,7 @@ test "compare - i32 - success" {
 
 test "compare - i32 - failure" {
     // NOTE: This failure test only works if the snapshot has different value
-    const data: i32 = 22334455;
+    const data: i32 = 1122334455;
     const result = compare(std.testing.io, std.testing.allocator, @src(), data);
     try std.testing.expectError(error.TestExpectedEqual, result);
 }
