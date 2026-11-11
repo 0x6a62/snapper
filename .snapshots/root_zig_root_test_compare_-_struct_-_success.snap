@@ -20,4 +20,8 @@ snapshot: ./.snapshots/root_zig_root_test_compare_-_struct_-_success.snap
       jkl:
         test <[]u8>
     }
+  prop1:
+    .Bar <@EnumLiteral()>
+  prop2:
+    Bar <root.Foo>
 }

@@ -1,6 +1,7 @@
 const std = @import("std");
 const Io = std.Io;
 const snapper = @import("snapper");
+const print = std.debug.print;
 
 pub fn main(init: std.process.Init) !void {
     const arena: std.mem.Allocator = init.arena.allocator();

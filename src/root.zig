@@ -168,6 +168,71 @@ fn stringify_inner(
                 }
             }
         },
+        .@"enum" => {
+            try results.append(
+                aa,
+                try std.fmt.allocPrint(aa, "{s}{s} <{any}>", .{
+                    indent_s,
+                    @tagName(value),
+                    @TypeOf(value),
+                }),
+            );
+        },
+        .enum_literal => {
+            try results.append(
+                aa,
+                try std.fmt.allocPrint(aa, "{s}{any} <{any}>", .{
+                    indent_s,
+                    value,
+                    (@TypeOf(value)),
+                }),
+            );
+        },
+        .@"union" => |u| {
+            _ = u;
+            try results.append(
+                aa,
+                try std.fmt.allocPrint(aa, "{s}{s}{any} <{any}>", .{
+                    indent_s,
+                    @tagName(value),
+                    value,
+                    @TypeOf(value),
+                }),
+            );
+            // print(">{any}\n", .{u.tag_type});
+            // print(">{any}\n", .{std.meta.Tag(@TypeOf(value))});
+            // print(">{any}\n", .{value});
+        },
+        .error_set => {
+            try results.append(
+                aa,
+                try std.fmt.allocPrint(aa, "{s}{any} <{any}>", .{
+                    indent_s,
+                    value,
+                    @TypeOf(value),
+                }),
+            );
+        },
+        .error_union => |eu| {
+            try results.append(
+                aa,
+                try std.fmt.allocPrint(aa, "{s}{any} <!{any}>", .{
+                    indent_s,
+                    value,
+                    eu.payload,
+                }),
+            );
+        },
+        .optional => {
+            try results.append(
+                aa,
+                try std.fmt.allocPrint(aa, "{s}{any} <{any}>", .{
+                    indent_s,
+                    value,
+                    @TypeOf(value),
+                }),
+            );
+        },
         else => {
             // Unsupport datatype
             // NOTE: When this pops up, figure out how to address
@@ -205,7 +270,7 @@ fn stringify_inner(
 }
 
 /// Stringify value
-fn stringify(aa: Allocator, value: anytype) ![]u8 {
+pub fn stringify(aa: Allocator, value: anytype) ![]u8 {
     const indent = 0;
 
     var results = ArrayList([]u8).empty;
@@ -408,6 +473,30 @@ pub fn compare(
 ////////
 // Tests
 
+const Foo = enum {
+    Bar,
+    Qua,
+    Baz,
+};
+
+const ShapeTag = enum {
+    Circle,
+    Rectangle,
+    Unknown,
+};
+
+const Rectangle = struct { w: i32, h: i32 };
+
+const Shape = union(ShapeTag) {
+    Circle: i32,
+    Rectangle: Rectangle,
+    Unknown: []u8,
+};
+
+fn make_error() !i32 {
+    return error.OutOfMemory;
+}
+
 test "stringify - bool - true" {
     var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
     defer arena.deinit();
@@ -510,8 +599,6 @@ test "stringify - array - i16" {
         \\  33 <u16>
         \\]
     ;
-    // print(">>{s}<<\n", .{actual});
-    // print(">>{s}<<\n", .{expected});
     try std.testing.expect(std.mem.eql(u8, actual, expected));
 }
 
@@ -527,6 +614,110 @@ test "stringify - array - string" {
         \\  foo <[]u8>
         \\  bar <[]u8>
         \\]
+    ;
+    try std.testing.expect(std.mem.eql(u8, actual, expected));
+}
+
+test "stringify - enum" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const value: Foo = .Qua;
+    const actual = try stringify(aa, value);
+    const expected =
+        \\Qua <root.Foo>
+    ;
+    try std.testing.expect(std.mem.eql(u8, actual, expected));
+}
+
+test "stringify - enumliteral" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const value = .Baz;
+    const actual = try stringify(aa, value);
+    const expected =
+        \\.Baz <@EnumLiteral()>
+    ;
+    try std.testing.expect(std.mem.eql(u8, actual, expected));
+}
+
+test "stringify - union - i32" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const value: Shape = Shape{ .Circle = 100 };
+    const actual = try stringify(aa, value);
+    const expected =
+        \\Circle.{ .Circle = 100 } <root.Shape>
+    ;
+    try std.testing.expect(std.mem.eql(u8, actual, expected));
+}
+
+test "stringify - union - struct" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const value: Shape = Shape{ .Rectangle = Rectangle{ .h = 10, .w = 20 } };
+    const actual = try stringify(aa, value);
+    const expected =
+        \\Rectangle.{ .Rectangle = .{ .w = 20, .h = 10 } } <root.Shape>
+    ;
+    try std.testing.expect(std.mem.eql(u8, actual, expected));
+}
+
+test "stringify - error set" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const value = error.OutOfMemory;
+    const actual = try stringify(aa, value);
+    const expected =
+        \\error.OutOfMemory <error{OutOfMemory}>
+    ;
+    try std.testing.expect(std.mem.eql(u8, actual, expected));
+}
+
+test "stringify - error union" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const value = make_error();
+    const actual = try stringify(aa, value);
+    const expected =
+        \\error.OutOfMemory <!i32>
+    ;
+    try std.testing.expect(std.mem.eql(u8, actual, expected));
+}
+
+test "stringify - optional - i64" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const value: ?i64 = 123;
+    const actual = try stringify(aa, value);
+    const expected =
+        \\123 <?i64>
+    ;
+    try std.testing.expect(std.mem.eql(u8, actual, expected));
+}
+
+test "stringify - optional - null" {
+    var arena = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena.deinit();
+    const aa = arena.allocator();
+
+    const value: ?i64 = null;
+    const actual = try stringify(aa, value);
+    const expected =
+        \\null <?i64>
     ;
     // print(">>{s}<<\n", .{actual});
     // print(">>{s}<<\n", .{expected});
@@ -621,6 +812,8 @@ test "compare - struct - success" {
             .ghi = "a",
             .jkl = "test",
         },
+        .prop1 = .Bar,
+        .prop2 = Foo.Bar,
     };
     try compare(std.testing.io, std.testing.allocator, @src(), data);
 }
