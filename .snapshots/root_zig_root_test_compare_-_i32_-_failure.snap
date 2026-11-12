@@ -1,2 +1,2 @@
 snapshot: ./.snapshots/root_zig_root_test_compare_-_i32_-_failure.snap
-: i32 = 1122334456
+: i32 = 1122334457

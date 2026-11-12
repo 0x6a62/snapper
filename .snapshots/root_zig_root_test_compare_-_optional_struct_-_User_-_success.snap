@@ -1,0 +1,2 @@
+snapshot: ./.snapshots/root_zig_root_test_compare_-_optional_struct_-_User_-_success.snap
+: ?root.User = .{ .name = { 65, 108, 105, 99, 101 }, .age = 99, .enabled = true, .favorite_shape = .{ .Circle = 200 }, .ids = { 1, 2, 3 }, .reference = null }

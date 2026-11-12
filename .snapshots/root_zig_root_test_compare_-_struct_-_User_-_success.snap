@@ -1,17 +1,17 @@
 snapshot: ./.snapshots/root_zig_root_test_compare_-_struct_-_User_-_success.snap
 .{
-  .name:
+  .name =
     : []u8 = Alice
   .age: i32 = 99
   .enabled: bool = true
-  .favorite_shape:
+  .favorite_shape =
     : root.Shape = Circle.{ .Circle = 200 }
-  .ids:
+  .ids =
     [
       : i8 = 1
       : i8 = 2
       : i8 = 3
     ]
-  .reference:
+  .reference =
     : ?*root.User = null
 }

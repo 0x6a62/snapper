@@ -158,7 +158,7 @@ fn stringify_inner(
                         // more complex value, name and value are on separate lines
                         try results.append(
                             aa,
-                            try allocPrint(aa, "{s}.{s}:", .{
+                            try allocPrint(aa, "{s}.{s} =", .{
                                 indent2_s,
                                 x.field_names[i],
                             }),
@@ -776,7 +776,7 @@ test "compare - i32 - success" {
 
 test "compare - i32 - failure" {
     // NOTE: This failure test only works if the snapshot has different value
-    const data: i32 = 1122334457;
+    const data: i32 = 1122334455;
     const result = compare(std.testing.io, std.testing.allocator, @src(), data);
     try std.testing.expectError(error.TestExpectedEqual, result);
 }
@@ -806,6 +806,19 @@ test "compare - struct - anonymous - success" {
 
 test "compare - struct - User - success" {
     const data = User{
+        .name = "Alice",
+        .age = 99,
+        .enabled = true,
+        .favorite_shape = .{ .Circle = 200 },
+        .ids = &[_]i8{ 1, 2, 3 },
+        .reference = null,
+    };
+
+    try compare(std.testing.io, std.testing.allocator, @src(), data);
+}
+
+test "compare - optional struct - User - success" {
+    const data: ?User = User{
         .name = "Alice",
         .age = 99,
         .enabled = true,
