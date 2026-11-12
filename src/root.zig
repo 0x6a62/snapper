@@ -4,6 +4,7 @@ const Allocator = std.mem.Allocator;
 const ArrayList = std.ArrayList;
 const Io = std.Io;
 const print = std.debug.print;
+const allocPrint = std.fmt.allocPrint;
 
 const SNAPSHOT_ROOT = "./.snapshots";
 
@@ -22,52 +23,48 @@ fn stringify_inner(
     const indent2_s = try aa.alloc(u8, (indent + 1) * 2);
     @memset(indent2_s, ' ');
 
+    /////////////////////////////
     // header for complex objects
     switch (ti) {
         .array => {
-            try results.append(
-                aa,
-                try std.fmt.allocPrint(aa, "{s}[", .{
-                    indent_s,
-                }),
-            );
+            try results.append(aa, try allocPrint(aa, "{s}[", .{indent_s}));
         },
         .@"struct" => {
+            const tn = @typeName(@TypeOf(value));
             try results.append(
                 aa,
-                try std.fmt.allocPrint(aa, "{s}{{", .{
+                try allocPrint(aa, "{s}{s}{{", .{
                     indent_s,
+                    if (std.mem.indexOf(u8, tn, "__struct_") == 0)
+                        tn
+                    else
+                        ".",
                 }),
             );
         },
         else => {},
     }
 
+    ///////////
     // contents
     switch (ti) {
         .bool => {
-            try results.append(
-                aa,
-                try std.fmt.allocPrint(aa, "{s}: {any} = {any}", .{
-                    indent_s,
-                    @TypeOf(value),
-                    value,
-                }),
-            );
+            try results.append(aa, try allocPrint(aa, "{s}: {any} = {any}", .{
+                indent_s,
+                @TypeOf(value),
+                value,
+            }));
         },
         .int,
         .float,
         .comptime_int,
         .comptime_float,
         => {
-            try results.append(
-                aa,
-                try std.fmt.allocPrint(aa, "{s}: {any} = {d}", .{
-                    indent_s,
-                    @TypeOf(value),
-                    value,
-                }),
-            );
+            try results.append(aa, try allocPrint(aa, "{s}: {any} = {d}", .{
+                indent_s,
+                @TypeOf(value),
+                value,
+            }));
         },
         .array => |a| {
             for (0..a.len) |i| {
@@ -91,20 +88,24 @@ fn stringify_inner(
                         // treat as string
                         try results.append(
                             aa,
-                            try std.fmt.allocPrint(aa, "{s}: []u8 = {s}", .{
+                            try allocPrint(aa, "{s}: []u8 = {s}", .{
                                 indent_s,
                                 value,
                             }),
                         );
                     } else {
-                        // treat as not string
-                        try results.append(
-                            aa,
-                            try std.fmt.allocPrint(aa, "{s}: <[]u8> = {any}", .{
-                                indent_s,
-                                value,
-                            }),
-                        );
+                        // treat as array (not string)
+                        try results.append(aa, try allocPrint(aa, "{s}[", .{
+                            indent_s,
+                        }));
+
+                        for (0..value.len) |i| {
+                            try stringify_inner(aa, value[i], indent + 1, results);
+                        }
+
+                        try results.append(aa, try allocPrint(aa, "{s}]", .{
+                            indent_s,
+                        }));
                     }
                 },
                 else => {
@@ -112,7 +113,7 @@ fn stringify_inner(
                     // NOTE: When this pops up, figure out how to address
                     try results.append(
                         aa,
-                        try std.fmt.allocPrint(
+                        try allocPrint(
                             aa,
                             "TODO: : {any} ({any}) = {any}",
                             .{ @TypeOf(value), p.size, value },
@@ -129,7 +130,7 @@ fn stringify_inner(
                     .bool => {
                         try results.append(
                             aa,
-                            try std.fmt.allocPrint(aa, "{s}{s}: {any} = {any}", .{
+                            try allocPrint(aa, "{s}.{s}: {any} = {any}", .{
                                 indent2_s,
                                 x.field_names[i],
                                 @TypeOf(@field(value, x.field_names[i])),
@@ -145,7 +146,7 @@ fn stringify_inner(
                         // simple value, show name and value on same line
                         try results.append(
                             aa,
-                            try std.fmt.allocPrint(aa, "{s}{s}: {any} = {d}", .{
+                            try allocPrint(aa, "{s}.{s}: {any} = {d}", .{
                                 indent2_s,
                                 x.field_names[i],
                                 @TypeOf(@field(value, x.field_names[i])),
@@ -157,7 +158,7 @@ fn stringify_inner(
                         // more complex value, name and value are on separate lines
                         try results.append(
                             aa,
-                            try std.fmt.allocPrint(aa, "{s}{s}:", .{
+                            try allocPrint(aa, "{s}.{s}:", .{
                                 indent2_s,
                                 x.field_names[i],
                             }),
@@ -169,93 +170,66 @@ fn stringify_inner(
             }
         },
         .@"enum" => {
-            try results.append(
-                aa,
-                try std.fmt.allocPrint(aa, "{s}: {any} = {s}", .{
-                    indent_s,
-                    @TypeOf(value),
-                    @tagName(value),
-                }),
-            );
+            try results.append(aa, try allocPrint(aa, "{s}: {any} = {s}", .{
+                indent_s,
+                @TypeOf(value),
+                @tagName(value),
+            }));
         },
         .enum_literal => {
-            try results.append(
-                aa,
-                try std.fmt.allocPrint(aa, "{s}: {any} = {any}", .{
-                    indent_s,
-                    (@TypeOf(value)),
-                    value,
-                }),
-            );
+            try results.append(aa, try allocPrint(aa, "{s}: {any} = {any}", .{
+                indent_s,
+                @TypeOf(value),
+                value,
+            }));
         },
         .@"union" => |u| {
             _ = u;
-            try results.append(
-                aa,
-                try std.fmt.allocPrint(aa, "{s}: {any} = {s}{any}", .{
-                    indent_s,
-                    @TypeOf(value),
-                    @tagName(value),
-                    value,
-                }),
-            );
-            // print(">{any}\n", .{u.tag_type});
-            // print(">{any}\n", .{std.meta.Tag(@TypeOf(value))});
-            // print(">{any}\n", .{value});
+            try results.append(aa, try allocPrint(aa, "{s}: {any} = {s}{any}", .{
+                indent_s,
+                @TypeOf(value),
+                @tagName(value),
+                value,
+            }));
         },
         .error_set => {
-            try results.append(
-                aa,
-                try std.fmt.allocPrint(aa, "{s}: {any} = {any}", .{
-                    indent_s,
-                    @TypeOf(value),
-                    value,
-                }),
-            );
+            try results.append(aa, try allocPrint(aa, "{s}: {any} = {any}", .{
+                indent_s,
+                @TypeOf(value),
+                value,
+            }));
         },
         .error_union => |eu| {
-            try results.append(
-                aa,
-                try std.fmt.allocPrint(aa, "{s}: !{any} = {any}", .{
-                    indent_s,
-                    eu.payload,
-                    value,
-                }),
-            );
+            try results.append(aa, try allocPrint(aa, "{s}: !{any} = {any}", .{
+                indent_s,
+                eu.payload,
+                value,
+            }));
         },
         .optional => {
-            try results.append(
-                aa,
-                try std.fmt.allocPrint(aa, "{s}: {any} = {any}", .{
-                    indent_s,
-                    @TypeOf(value),
-                    value,
-                }),
-            );
+            try results.append(aa, try allocPrint(aa, "{s}: {any} = {any}", .{
+                indent_s,
+                @TypeOf(value),
+                value,
+            }));
         },
         else => {
             // Unsupport datatype
             // NOTE: When this pops up, figure out how to address
-            try results.append(
-                aa,
-                try std.fmt.allocPrint(
-                    aa,
-                    "TODO: : {any} = {any}",
-                    .{
-                        @TypeOf(value),
-                        value,
-                    },
-                ),
-            );
+            try results.append(aa, try allocPrint(aa, "TODO: : {any} = {any}", .{
+                @TypeOf(value),
+                value,
+            }));
         },
     }
 
+    /////////////////////////////
     // footer for complex objects
     switch (ti) {
         .array => {
             try results.append(
                 aa,
-                try std.fmt.allocPrint(aa, "{s}]", .{
+                try allocPrint(aa, "{s}]", .{
                     indent_s,
                 }),
             );
@@ -263,7 +237,7 @@ fn stringify_inner(
         .@"struct" => {
             try results.append(
                 aa,
-                try std.fmt.allocPrint(aa, "{s}}}", .{
+                try allocPrint(aa, "{s}}}", .{
                     indent_s,
                 }),
             );
@@ -324,7 +298,7 @@ fn build_snapshot_name(
     src: std.lang.SourceLocation,
     snapshot_root: []const u8,
 ) ![]u8 {
-    const snapshot_base_name_prelim = try std.fmt.allocPrint(aa, "{s}_{s}_{s}", .{
+    const snapshot_base_name_prelim = try allocPrint(aa, "{s}_{s}_{s}", .{
         src.file,
         src.module,
         src.fn_name,
@@ -337,7 +311,7 @@ fn build_snapshot_name(
     _ = std.mem.replace(u8, sanitized1, " ", "_", sanitized2);
 
     const snapshot_base_name = sanitized2;
-    const snapshot_name = try std.fmt.allocPrint(aa, "{s}.snap", .{
+    const snapshot_name = try allocPrint(aa, "{s}.snap", .{
         snapshot_base_name,
     });
 
@@ -402,7 +376,7 @@ pub fn compare(
         var r = file.reader(io, &buffer);
         var ri = &r.interface;
 
-        const header_len = (try std.fmt.allocPrint(aa, "snapshot: {s}\n", .{snapshot_name})).len;
+        const header_len = (try allocPrint(aa, "snapshot: {s}\n", .{snapshot_name})).len;
         r.seekTo(header_len) catch {
             // std.log.scoped(.compare).warn(
             //     "Header seek error: {any} Position: {d}",
@@ -494,6 +468,15 @@ const Shape = union(ShapeTag) {
     Circle: i32,
     Rectangle: Rectangle,
     Unknown: []u8,
+};
+
+const User = struct {
+    name: []const u8,
+    age: i32,
+    enabled: bool,
+    favorite_shape: Shape,
+    ids: []const i8,
+    reference: ?*User,
 };
 
 fn make_error() !i32 {
@@ -793,7 +776,7 @@ test "compare - i32 - success" {
 
 test "compare - i32 - failure" {
     // NOTE: This failure test only works if the snapshot has different value
-    const data: i32 = 1122334455;
+    const data: i32 = 1122334457;
     const result = compare(std.testing.io, std.testing.allocator, @src(), data);
     try std.testing.expectError(error.TestExpectedEqual, result);
 }
@@ -803,7 +786,7 @@ test "compare - array - success" {
     try compare(std.testing.io, std.testing.allocator, @src(), data);
 }
 
-test "compare - struct - success" {
+test "compare - struct - anonymous - success" {
     const data = .{
         .foo = 100,
         .bar = 200.345,
@@ -818,5 +801,18 @@ test "compare - struct - success" {
         .prop1 = .Bar,
         .prop2 = Foo.Bar,
     };
+    try compare(std.testing.io, std.testing.allocator, @src(), data);
+}
+
+test "compare - struct - User - success" {
+    const data = User{
+        .name = "Alice",
+        .age = 99,
+        .enabled = true,
+        .favorite_shape = .{ .Circle = 200 },
+        .ids = &[_]i8{ 1, 2, 3 },
+        .reference = null,
+    };
+
     try compare(std.testing.io, std.testing.allocator, @src(), data);
 }

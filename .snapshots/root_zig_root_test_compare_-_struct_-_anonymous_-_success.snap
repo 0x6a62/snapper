@@ -1,0 +1,27 @@
+snapshot: ./.snapshots/root_zig_root_test_compare_-_struct_-_anonymous_-_success.snap
+.{
+  .foo: comptime_int = 100
+  .bar: comptime_float = 200.345
+  .baz: bool = false
+  .qua:
+    [
+      : u16 = 11
+      : u16 = 22
+      : u16 = 33
+    ]
+  .quux:
+    .{
+      .abc:
+        : []u8 = this
+      .def:
+        : []u8 = is
+      .ghi:
+        : []u8 = a
+      .jkl:
+        : []u8 = test
+    }
+  .prop1:
+    : @EnumLiteral() = .Bar
+  .prop2:
+    : root.Foo = Bar
+}
