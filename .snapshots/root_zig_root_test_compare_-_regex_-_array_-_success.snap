@@ -1,0 +1,8 @@
+snapshot: ./.snapshots/root_zig_root_test_compare_-_regex_-_array_-_success.snap
+[
+  : f32 = \d+
+  : f32 = 234
+  : f32 = \d?
+  : f32 = \d*
+  : f32 = 567
+]
