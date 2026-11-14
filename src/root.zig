@@ -8,6 +8,187 @@ const allocPrint = std.fmt.allocPrint;
 
 const SNAPSHOT_ROOT = "./.snapshots";
 
+//////////////
+// RegEx Start
+
+/// RegEx State
+const RegExState = struct {
+    /// + pattern is currently in a matched state
+    plus_matched: bool,
+};
+
+/// RegEx matching (inner function)
+fn match_inner(
+    regex: []const u8,
+    s: []const u8,
+    ri: usize,
+    si: usize,
+    state: RegExState,
+) bool {
+    // For debugging
+    // if (regex[0] == 'Z') {
+    //     print("{d} {d} {c} {c} :: {d} {d}\n", .{
+    //         ri,
+    //         si,
+    //         if (ri < regex.len) regex[ri] else '_',
+    //         if (si < s.len) s[si] else '_',
+    //         regex.len,
+    //         s.len,
+    //     });
+    // }
+
+    // End of regex
+    if (ri >= regex.len) {
+        return si >= s.len;
+    }
+
+    // class len: . = 1, \d = 2
+    var class_len: usize = 1;
+    if (ri + 1 < regex.len and regex[ri] == '\\' and regex[ri + 1] == 'd') {
+        class_len = 2;
+    }
+
+    // Try to match current char
+    var char_matched = false;
+    if (si < s.len) {
+        if (ri + 1 < regex.len and regex[ri] == '\\' and regex[ri + 1] == 'd' and s[si] >= '0' and s[si] <= '9') {
+            // match digits
+            char_matched = true;
+        } else if (regex[ri] == s[si]) {
+            // matches char exactly
+            char_matched = true;
+        } else if (regex[ri] == '.') {
+            // match any character
+            char_matched = true;
+        }
+    }
+
+    // For debugging
+    // if (regex[0] == 'Z') {
+    //     print("{d} {d} {c} {c} :: {d} {d} :: {any} {d} :: {any}\n", .{
+    //         ri,
+    //         si,
+    //         if (ri < regex.len) regex[ri] else '_',
+    //         if (si < s.len) s[si] else '_',
+    //         regex.len,
+    //         s.len,
+    //         char_matched,
+    //         class_len,
+    //         (ri + (class_len - 1) + 1 < regex.len),
+    //     });
+    // }
+
+    if (ri + (class_len - 1) + 1 < regex.len) {
+        if (regex[ri + class_len] == '*') {
+            // Match *
+            if (match_inner(
+                regex,
+                s,
+                ri + class_len + 1,
+                si,
+                RegExState{ .plus_matched = false },
+            )) {
+                // try to match 0 chars
+                return true;
+            } else if (char_matched) {
+                // try to match multiple chars
+                return match_inner(
+                    regex,
+                    s,
+                    ri,
+                    si + 1,
+                    RegExState{ .plus_matched = false },
+                );
+            }
+        } else if (regex[ri + class_len] == '?') {
+            // match ?
+            if (match_inner(
+                regex,
+                s,
+                ri + class_len + 1,
+                si,
+                RegExState{ .plus_matched = false },
+            )) {
+                // try to match 0 chars
+                return true;
+            } else if (char_matched) {
+                // try to match 1 char
+                return match_inner(
+                    regex,
+                    s,
+                    ri + class_len + 1,
+                    si + 1,
+                    RegExState{ .plus_matched = false },
+                );
+            }
+        } else if (regex[ri + class_len] == '+') {
+            // match +
+            if (state.plus_matched) {
+                if (match_inner(
+                    regex,
+                    s,
+                    ri + class_len + 1,
+                    si,
+                    RegExState{ .plus_matched = true },
+                )) {
+                    // already matched, continue by matching 0 chars of the pattern
+                    return true;
+                }
+
+                if (match_inner(
+                    regex,
+                    s,
+                    ri + class_len + 1,
+                    si + 1,
+                    RegExState{ .plus_matched = false },
+                )) {
+                    // did not match this char, but plus has already been accomplished
+                    return true;
+                }
+
+                // did not match this char, but plus has already been accomplished
+            }
+
+            if (char_matched) {
+                // matched this char, keep attempting a match
+                return match_inner(
+                    regex,
+                    s,
+                    ri,
+                    si + 1,
+                    RegExState{ .plus_matched = true },
+                );
+            }
+        }
+    }
+
+    return char_matched and match_inner(
+        regex,
+        s,
+        ri + class_len,
+        si + 1,
+        RegExState{ .plus_matched = false },
+    );
+}
+
+/// RegEx matching
+/// This is a very simple and restricted version, just enough to get by
+/// Supported:
+/// .? .+ .*
+/// \d? \d+ \d*
+fn match(regex: []const u8, s: []const u8) bool {
+    // Check exact match
+    if (std.mem.eql(u8, regex, s)) {
+        return true;
+    }
+
+    // Use regex
+    return match_inner(regex, s, 0, 0, RegExState{ .plus_matched = false });
+}
+
+// RegEx End
+////////////
+
 /// Stringify value by appending its stringified value(s) to the results array
 fn stringify_inner(
     aa: Allocator,
@@ -256,146 +437,6 @@ pub fn stringify(aa: Allocator, value: anytype) ![]u8 {
     try stringify_inner(aa, value, indent, &results);
 
     return try std.mem.join(aa, "\n", results.items);
-}
-
-/// RegEx State
-const RegExState = struct {
-    /// + pattern is currently in a matched state
-    plus_matched: bool,
-};
-
-/// RegEx matching (inner function)
-fn match_inner(
-    regex: []const u8,
-    s: []const u8,
-    ri: usize,
-    si: usize,
-    state: RegExState,
-) bool {
-    if (regex[0] == 'Z') {
-        print("{d} {d} {c} {c} :: {d} {d}\n", .{
-            ri,
-            si,
-            if (ri < regex.len) regex[ri] else '_',
-            if (si < s.len) s[si] else '_',
-            regex.len,
-            s.len,
-        });
-    }
-
-    // End of regex
-    if (ri >= regex.len) {
-        print("LEN CHECK {any}\n", .{si >= s.len});
-        return si >= s.len;
-    }
-
-    var class_len: usize = 1;
-
-    var char_matched = false;
-    if (ri + 1 < regex.len and regex[ri] == '\\' and regex[ri + 1] == 'd') {
-        class_len = 2;
-    } else if (ri + 2 < regex.len and regex[ri] == '\\' and regex[ri + 1] == 'd') {
-        class_len = 2;
-    }
-
-    if (si < s.len) {
-        if (ri + 1 < regex.len and regex[ri] == '\\' and regex[ri + 1] == 'd' and (s[si] >= '0' and s[si] <= '9')) {
-            // match digits
-            char_matched = true;
-        } else if (regex[ri] == s[si]) {
-            // matches char exactly
-            char_matched = true;
-        } else if (regex[ri] == '.') {
-            // match any character
-            char_matched = true;
-        }
-    }
-
-    if (regex[0] == 'Z') {
-        print("{d} {d} {c} {c} :: {d} {d} :: {any} {d} :: {any}\n", .{
-            ri,
-            si,
-            if (ri < regex.len) regex[ri] else '_',
-            if (si < s.len) s[si] else '_',
-            regex.len,
-            s.len,
-            char_matched,
-            class_len,
-            (ri + (class_len - 1) + 1 < regex.len),
-        });
-    }
-
-    // if (ri < regex.len and si < regex.len and regex[0] == 'Z') {
-    //     print("  {any} {any}\n", .{ char_matched, (s[si] >= '0' and s[si] <= '9') });
-    // }
-
-    if (ri + (class_len - 1) + 1 < regex.len) {
-        print(". ({c})\n", .{regex[ri + class_len]});
-        if (regex[ri + class_len] == '*') {
-            print("*\n", .{});
-            // Match *
-            if (match_inner(regex, s, ri + class_len + 1, si, RegExState{ .plus_matched = false })) {
-                // try to match 0 chars
-                return true;
-            } else if (char_matched) {
-                print("*charmatched\n", .{});
-                // try to match multiple chars
-                return match_inner(regex, s, ri, si + 1, RegExState{ .plus_matched = false });
-            }
-        } else if (regex[ri + class_len] == '?') {
-            // match ?
-            if (match_inner(regex, s, ri + class_len + 1, si, RegExState{ .plus_matched = false })) {
-                // try to match 0 chars
-                return true;
-            } else if (char_matched) {
-                // try to match 1 char
-                return match_inner(regex, s, ri + class_len + 1, si + 1, RegExState{ .plus_matched = false });
-            }
-        } else if (regex[ri + class_len] == '+') {
-            // match +
-            if (state.plus_matched) {
-                print("plusmatched\n", .{});
-
-                if (match_inner(regex, s, ri + class_len + 1, si, RegExState{ .plus_matched = true })) {
-                    // already match, try to continue by matching 0 chars more of the pattern
-                    print("plusmatched 0 match\n", .{});
-                    return true;
-                }
-
-                if (match_inner(regex, s, ri + class_len + 1, si + 1, RegExState{ .plus_matched = false })) {
-                    // did not match this char, but plus has already been accomplished
-                    print("plusmatched more matched\n", .{});
-                    return true;
-                }
-
-                // did not match this char, but plus has already been accomplished
-                // return match_inner(regex, s, ri + class_len + 1, si + 1, RegExState{ .plus_matched = false });
-            }
-            if (char_matched) {
-                print("+charmatched\n", .{});
-                // matched this char, keep attempting a match
-                return match_inner(regex, s, ri, si + 1, RegExState{ .plus_matched = true });
-            }
-        }
-    }
-
-    print("---{any}\n", .{char_matched});
-    return char_matched and match_inner(regex, s, ri + class_len, si + 1, RegExState{ .plus_matched = false });
-}
-
-/// RegEx matching
-/// This is a very simple and restricted version, just enough to get by
-/// Supported:
-/// .? .+ .*
-/// \d? \d+ \d*
-fn match(regex: []const u8, s: []const u8) bool {
-    // Check exact match
-    if (std.mem.eql(u8, regex, s)) {
-        return true;
-    }
-
-    // Use regex
-    return match_inner(regex, s, 0, 0, RegExState{ .plus_matched = false });
 }
 
 /// Compare expected versus actual
@@ -1056,7 +1097,7 @@ test "regex - match 1+ - end" {
 }
 
 test "regex - match 1+ - middle" {
-    const result = match("Za.+c", "Zabc");
+    const result = match("a.+c", "abc");
     try std.testing.expect(result);
 }
 
