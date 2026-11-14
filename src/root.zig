@@ -258,6 +258,85 @@ pub fn stringify(aa: Allocator, value: anytype) ![]u8 {
     return try std.mem.join(aa, "\n", results.items);
 }
 
+/// RegEx State
+const RegExState = struct {
+    /// + pattern is currently in a matched state
+    plus_matched: bool,
+};
+
+/// RegEx matching (inner function)
+fn match_inner(
+    regex: []const u8,
+    s: []const u8,
+    ri: usize,
+    si: usize,
+    state: RegExState,
+) bool {
+    // End of regex
+    if (ri >= regex.len) {
+        return si >= s.len;
+    }
+
+    var char_matched = false;
+    if (si < s.len) {
+        if (regex[ri] == s[si]) {
+            // matches char exactly
+            char_matched = true;
+        } else if (regex[ri] == '.') {
+            // match any character
+            char_matched = true;
+        }
+    }
+
+    if (ri + 1 < regex.len) {
+        if (regex[ri + 1] == '*') {
+            // Match *
+            if (match_inner(regex, s, ri + 2, si, RegExState{ .plus_matched = false })) {
+                // try to match 0 chars
+                return true;
+            } else if (char_matched) {
+                // try to match multiple chars
+                return match_inner(regex, s, ri, si + 1, RegExState{ .plus_matched = false });
+            }
+        } else if (regex[ri + 1] == '?') {
+            // match ?
+            if (match_inner(regex, s, ri + 2, si, RegExState{ .plus_matched = false })) {
+                // try to match 0 chars
+                return true;
+            } else if (char_matched) {
+                // try to match 1 char
+                return match_inner(regex, s, ri + 2, si + 1, RegExState{ .plus_matched = false });
+            }
+        } else if (regex[ri + 1] == '+') {
+            // match +
+            if (state.plus_matched) {
+                // did not match this char, but plus has already been accomplished
+                return match_inner(regex, s, ri + 2, si, RegExState{ .plus_matched = false });
+            } else if (char_matched) {
+                // matched this char, keep attempting a match
+                return match_inner(regex, s, ri, si + 1, RegExState{ .plus_matched = true });
+            }
+        }
+    }
+
+    return char_matched and match_inner(regex, s, ri + 1, si + 1, RegExState{ .plus_matched = false });
+}
+
+/// RegEx matching
+/// Supported:
+/// .?
+/// .+
+/// .*
+fn match(regex: []const u8, s: []const u8) bool {
+    // Check exact match
+    if (std.mem.eql(u8, regex, s)) {
+        return true;
+    }
+
+    // Use regex
+    return match_inner(regex, s, 0, 0, RegExState{ .plus_matched = false });
+}
+
 /// Compare expected versus actual
 pub fn expect(allocator: Allocator, src: std.lang.SourceLocation, expected: anytype, actual: anytype) !void {
     _ = src;
@@ -828,4 +907,109 @@ test "compare - optional struct - User - success" {
     };
 
     try compare(std.testing.io, std.testing.allocator, @src(), data);
+}
+
+test "regex - exact match" {
+    const result = match("abc", "abc");
+    try std.testing.expect(result);
+}
+
+test "regex - match 1 any first" {
+    const result = match(".bc", "abc");
+    try std.testing.expect(result);
+}
+
+test "regex - match 1 any last" {
+    const result = match("ab.", "abc");
+    try std.testing.expect(result);
+}
+
+test "regex - match 1 any middle" {
+    const result = match("ab.d", "abcd");
+    try std.testing.expect(result);
+}
+
+test "regex - match 2 any middle" {
+    const result = match("a..d", "abcd");
+    try std.testing.expect(result);
+}
+
+test "regex - match 1 - failed" {
+    const result = match("ab.", "abcd");
+    try std.testing.expect(!result);
+}
+
+test "regex - match 3 any middle" {
+    const result = match("a.*d", "abccd");
+    try std.testing.expect(result);
+}
+
+test "regex - match 6 any middle" {
+    const result = match("a.*d", "aUTWXYZd");
+    try std.testing.expect(result);
+}
+
+test "regex - match 1? - start" {
+    const result = match(".?bc", "abc");
+    try std.testing.expect(result);
+}
+
+test "regex - match 1? - end" {
+    const result = match("ab.?", "abc");
+    try std.testing.expect(result);
+}
+
+test "regex - match 1? - middle" {
+    const result = match("a.?c", "abc");
+    try std.testing.expect(result);
+}
+
+test "regex - match 0? - start" {
+    const result = match(".?bc", "bc");
+    try std.testing.expect(result);
+}
+
+test "regex - match 0? - end" {
+    const result = match("a.?", "a");
+    try std.testing.expect(result);
+}
+
+test "regex - match 0? - middle" {
+    const result = match("a.?c", "ac");
+    try std.testing.expect(result);
+}
+
+test "regex - match 0? - middle - failed" {
+    const result = match("a.?c", "ab");
+    try std.testing.expect(!result);
+}
+
+test "regex - match 1+ - start" {
+    const result = match(".+bc", "abc");
+    try std.testing.expect(result);
+}
+
+test "regex - match 1+ - end" {
+    const result = match("ab.+", "abc");
+    try std.testing.expect(result);
+}
+
+test "regex - match 1+ - middle" {
+    const result = match("a.+c", "abc");
+    try std.testing.expect(result);
+}
+
+test "regex - match 0+ - start - failure" {
+    const result = match(".+bc", "bc");
+    try std.testing.expect(!result);
+}
+
+test "regex - match 0+ - end - failure" {
+    const result = match("a.+", "a");
+    try std.testing.expect(!result);
+}
+
+test "regex - match 0+ - middle - failure" {
+    const result = match("a.+c", "ac");
+    try std.testing.expect(!result);
 }
