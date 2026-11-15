@@ -273,7 +273,8 @@ pub fn expect(allocator: Allocator, src: std.lang.SourceLocation, expected: anyt
     // std.debug.print("e: {s}\n", .{expected_string});
     // std.debug.print("a: {s}\n", .{actual_string});
 
-    if (!std.mem.eql(u8, expected_string, actual_string)) {
+    // regex
+    if (!regex.match_embedded(expected_string, actual_string)) {
         // std.log.scoped(.expects).warn("expect failed for {s} {d}:{d} ({s}.{s})\n", .{
         //     src.file,   src.line,    src.column,
         //     src.module, src.fn_name,
@@ -375,11 +376,13 @@ pub fn compare(
         defer file.close(io);
 
         var buffer: [buffer_size]u8 = undefined;
-        var r = file.reader(io, &buffer);
-        var ri = &r.interface;
+        var expected_reader = file.reader(io, &buffer);
+        var expected_r_i = &expected_reader.interface;
+
+        var actual_s_i: Io.Reader = .fixed(actual_s);
 
         const header_len = (try allocPrint(aa, "snapshot: {s}\n", .{snapshot_name})).len;
-        r.seekTo(header_len) catch {
+        expected_reader.seekTo(header_len) catch {
             // std.log.scoped(.compare).warn(
             //     "Header seek error: {any} Position: {d}",
             //     .{
@@ -390,53 +393,37 @@ pub fn compare(
             return error.TestExpectedEqual;
         };
 
-        // Read through file buffer at a time, doing comparison against actual
-        var actual_index: usize = 0;
-
+        // Read through expected file buffer at a time, doing comparison against actual
         // Line by line comparison of file version actual
-        while (try ri.takeDelimiter('\n')) |d| {
-            const x = d.len;
-            if (actual_index > actual_s.len) {
+        // Get line from snapshot, then line from actual, then do compare
+        var line_idx: usize = 1;
+        while (try expected_r_i.takeDelimiter('\n')) |expected_line| {
+            if (try actual_s_i.takeDelimiter('\n')) |actual_line| {
+                if (!regex.match_embedded(expected_line, actual_line)) {
+                    // failed match
+                    std.log.scoped(.compare).err(
+                        "\nline: {d}\nexpected: '{s}'\nactual  : '{s}'",
+                        .{
+                            line_idx,
+                            expected_line,
+                            actual_line,
+                        },
+                    );
+                    return error.TestExpectedEqual;
+                }
+            } else {
+                // snapshot file has a line that actual doesn't have
                 std.log.scoped(.compare).err(
-                    "Size mismatch {d} {d} (end)\n",
+                    "\nline: {d}\nexpected: '{s}'\nactual  : '{s}'",
                     .{
-                        actual_index,
-                        actual_s.len,
+                        line_idx,
+                        expected_line,
+                        "",
                     },
                 );
                 return error.TestExpectedEqual;
             }
-            if (actual_index + x > actual_s.len) {
-                std.log.scoped(.compare).err(
-                    "Size mismatch {d} {d} (end)\n",
-                    .{
-                        actual_index + x,
-                        actual_s.len,
-                    },
-                );
-                return error.TestExpectedEqual;
-            }
-
-            // print("e:{s}\n", .{d[0..x]});
-            // print("a:{s}\n", .{actual_s[actual_index .. actual_index + x]});
-
-            // exact match
-            // if (!std.mem.eql(u8, d[0..x], actual_s[actual_index .. actual_index + x])) {
-
-            // regex match
-            if (!regex.match(d[0..x], actual_s[actual_index .. actual_index + x])) {
-                // failed match
-                std.log.scoped(.compare).err(
-                    "\nexpected: '{s}'\nactual  : '{s}'",
-                    .{
-                        d[0..x],
-                        actual_s[actual_index .. actual_index + x],
-                    },
-                );
-                return error.TestExpectedEqual;
-            }
-            // Advance data block + delimiter
-            actual_index += x + 1;
+            line_idx += 1;
         }
     } else {
         // Snapshot doesn't exist, create
@@ -744,7 +731,7 @@ test "expects - i32 - success" {
 
 test "expects - i32 - failure" {
     const actual = 123456;
-    const expected = 654321;
+    const expected = 654322;
     const result = expect(std.testing.allocator, @src(), expected, actual);
 
     try std.testing.expectError(error.TestExpectedEqual, result);
@@ -844,4 +831,11 @@ test "compare - regex - array - success" {
 test "compare - regex - string - success" {
     const data = "id123x";
     try compare(std.testing.io, std.testing.allocator, @src(), data);
+}
+
+test "expect - regex - number - success" {
+    const e = "abc.?timestamp = <<re:\\d*>>, .id = 101";
+    const a = "abc.?timestamp = 1794668537939453042, .id = 101";
+
+    try expect(std.testing.allocator, @src(), e, a);
 }

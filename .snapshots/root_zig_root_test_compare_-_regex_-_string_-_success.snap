@@ -1,2 +1,2 @@
 snapshot: ./.snapshots/root_zig_root_test_compare_-_regex_-_string_-_success.snap
-: []u8 = id\d+x
+: []u8 = id<<re:\d+>>x
